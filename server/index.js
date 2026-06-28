@@ -9,11 +9,11 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middleware configuration - ALLOWS YOUR VERCEL FRONTEND TO TALK TO RENDER
+// Middleware configuration
 app.use(cors({
   origin: [
-    'https://socratic-tutor-8mluwig5j-mahesh-git-hub009s-projects.vercel.app', // Your live deployment URL
-    'http://localhost:5173' // Keeps it working flawlessly on your local machine
+    /https:\/\/socratic-tutor-.*\.vercel\.app$/, // Allows ALL your present and future Vercel deployment URLs automatically
+    'http://localhost:5173'                      // For local testing
   ],
   credentials: true
 }));
