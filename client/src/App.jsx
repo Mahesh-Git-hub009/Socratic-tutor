@@ -102,8 +102,7 @@ export default function App() {
     setIsLoading(true);
 
     try {
-      const BACKEND_API_URL = import.meta.env.VITE_BACKEND_URL || 'https://socratic-tutor-backend.onrender.com';
-      
+const BACKEND_API_URL = 'https://socratic-tutor-backend.onrender.com';      
       const response = await fetch(`${BACKEND_API_URL}/api/chat`, {
         method: 'POST',
         headers: {
@@ -239,7 +238,7 @@ export default function App() {
       <div className="w-[35%] h-full flex flex-col bg-slate-950">
         <div className="p-4 bg-slate-900/30 border-b border-slate-800 flex items-center justify-between">
           <h3 className="font-semibold text-slate-200 text-sm flex items-center gap-1">
-            Pudding <Sparkles className="w-3 h-3 text-indigo-400" />
+            Sage <Sparkles className="w-3 h-3 text-indigo-400" />
           </h3>
           <button 
             onClick={handleClearChat}
