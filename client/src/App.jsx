@@ -4,7 +4,7 @@ import { Terminal, Send, Code, Sparkles, Trash2, Play, Pause, RotateCcw, Trophy 
 export default function App() {
   // State for Frontend Inputs
   const [language, setLanguage] = useState('cpp');
-  const [code, setCode] = useState('// paste your broken code here\n#include <iostream>\nusing namespace std;\n\nint main() {\n int arr[5] = {1, 2, 3, 4, 5};\n   for(int i=0; i <=5; i++) {\n       cout << arr[i] <<" ";\n   }\n  }\n   return 0;\n}');
+  const [code, setCode] = useState("");
   const [problemStatment, setProblemStatment] = useState('My array is printing weird numbers atthe end or crashing.');
   const [compileError, setCompileError] = useState('Segmentation fault or garbage value printed at the end.');
 
@@ -102,7 +102,7 @@ export default function App() {
     setIsLoading(true);
 
     try {
-      const BACKEND_API_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+      const BACKEND_API_URL = import.meta.env.VITE_BACKEND_URL || 'https://socratic-tutor-backend.onrender.com';
       
       const response = await fetch(`${BACKEND_API_URL}/api/chat`, {
         method: 'POST',
