@@ -6,7 +6,7 @@ export default function App() {
   const [language, setLanguage] = useState('cpp');
   const [code, setCode] = useState("");
   const [problemStatment, setProblemStatment] = useState('My array is printing weird numbers atthe end or crashing.');
-  const [compileError, setCompileError] = useState('Segmentation fault or garbage value printed at the end.');
+  const [compileError, setCompileError] = useState('');
 
   // State for Gamified Study Points
   const [studyPoints, setStudyPoints] = useState(() => {
@@ -23,7 +23,7 @@ export default function App() {
   const [messages, setMessages] = useState(() => {
     const savedSession = localStorage.getItem('socratic_sage_history');
     return savedSession ? JSON.parse(savedSession) : [
-      { role: 'assistant', content: "Hi! I'm Pudding, your coding tutor. Paste your problem content on the left, then send me a message here to start working through it together!" } 
+      { role: 'assistant', content: "Hi! I'm Sage, your coding tutor. Paste your problem content on the left, then send me a message here to start working through it together!" } 
     ];
   });
 
@@ -38,7 +38,7 @@ export default function App() {
 
   // Synchronize Chat History to localStorage
   useEffect(() => {
-    localStorage.setItem('socratic_sage_history', JSON.stringify(messages));
+    localStorage.setItem('socratic_Sage_history', JSON.stringify(messages));
   }, [messages]);
 
   // Handle smooth alignment scrolling

@@ -10,11 +10,9 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware configuration
+// Change this block in server/index.js:
 app.use(cors({
-  origin: [
-    /https:\/\/socratic-tutor-.*\.vercel\.app$/, // Allows ALL your present and future Vercel deployment URLs automatically
-    'http://localhost:5173'                      // For local testing
-  ],
+  origin: true, // This allows any incoming domain (like your new Vercel preview links) to connect
   credentials: true
 }));
 
