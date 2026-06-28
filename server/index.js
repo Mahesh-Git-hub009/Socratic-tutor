@@ -9,8 +9,15 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middleware configuration
-app.use(cors());
+// Middleware configuration - ALLOWS YOUR VERCEL FRONTEND TO TALK TO RENDER
+app.use(cors({
+  origin: [
+    'https://socratic-tutor-8mluwig5j-mahesh-git-hub009s-projects.vercel.app', // Your live deployment URL
+    'http://localhost:5173' // Keeps it working flawlessly on your local machine
+  ],
+  credentials: true
+}));
+
 app.use(express.json());
 
 // Initialize the Gemini Client
@@ -56,7 +63,7 @@ app.post('/api/chat', async (req, res) => {
       }));
     } else {
       // Fallback if conversation stream starting payload arrives empty
-      formattedContents = [{ role: 'user', parts: [{ text: 'Hello Sage!' }] }];
+      formattedContents = [{ role: 'user', parts: [{ text: 'Hello Pudding!' }] }];
     }
 
     // Call the high-performance Gemini Flash model with correctly nested configurations
@@ -79,5 +86,5 @@ app.post('/api/chat', async (req, res) => {
 
 // Start listening for requests
 app.listen(PORT, () => {
-  console.log(`🚀 Backend server is running live on http://localhost:${PORT}`);
+  console.log(`🚀 Backend server is running live on port ${PORT}`);
 });
