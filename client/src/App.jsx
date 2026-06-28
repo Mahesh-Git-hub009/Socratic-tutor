@@ -263,7 +263,7 @@ const BACKEND_API_URL = 'https://socratic-tutor-backend.onrender.com';
           {isLoading && (
             <div className="flex justify-start">
               <div className="bg-slate-900 border border-slate-800 text-slate-400 rounded-2xl px-4 py-2.5 text-sm italic animate-pulse">
-                Pudding is analyzing your workspace...
+                Sage is analyzing your workspace...
               </div>
             </div>
           )}
