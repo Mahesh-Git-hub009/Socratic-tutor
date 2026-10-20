@@ -4,9 +4,7 @@ A full stack AI coding mentor that helps developers build real debugging skills.
 
 **[Live demo](https://socratic-tutor-kohl.vercel.app/)** · Frontend on Vercel · API on Render
 
-<!-- Add a screenshot or GIF here once you have one:
 ![Sage Hub screenshot](docs/screenshot.png)
--->
 
 ## Features
 
