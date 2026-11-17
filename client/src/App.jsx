@@ -1,16 +1,24 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Send, Code, Sparkles, Trash2, Play, Pause, RotateCcw, Trophy } from 'lucide-react';
+import { Send, Trash2, Play, Pause, RotateCcw, Trophy } from 'lucide-react';
 
 const BACKEND_API_URL = 'https://socratic-tutor-backend.onrender.com';
 const HISTORY_KEY = 'socratic_sage_history';
 const POINTS_KEY = 'scholar_study_points';
+const MAX_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 5000;
+const UI_FONT = { fontFamily: "'Inter', system-ui, sans-serif" };
+const MONO_FONT = { fontFamily: "'JetBrains Mono', ui-monospace, monospace" };
+
+const WELCOME =
+  "Hi, I'm Sage. Pick a language, paste your code on the left, and tell me what's going wrong. I'll help you find it yourself.";
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export default function App() {
-  const [language] = useState('cpp');
+  const [language, setLanguage] = useState('cpp');
   const [code, setCode] = useState('');
-  const [problemStatement] = useState('');
   const [compileError, setCompileError] = useState('');
 
   const [studyPoints, setStudyPoints] = useState(() => {
@@ -24,13 +32,12 @@ export default function App() {
 
   const [messages, setMessages] = useState(() => {
     const saved = localStorage.getItem(HISTORY_KEY);
-    return saved
-      ? JSON.parse(saved)
-      : [{ role: 'assistant', content: "Hi! I'm Sage, your coding tutor. Paste your problem content on the left, then send me a message here to start working through it together!" }];
+    return saved ? JSON.parse(saved) : [{ role: 'assistant', content: WELCOME }];
   });
 
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingNote, setLoadingNote] = useState('');
   const chatEndRef = useRef(null);
 
   useEffect(() => {
@@ -43,7 +50,7 @@ export default function App() {
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, isLoading]);
 
   useEffect(() => {
     let interval = null;
@@ -55,7 +62,7 @@ export default function App() {
         setStudyPoints((prev) => prev + 100);
         setMessages((prev) => [
           ...prev,
-          { role: 'assistant', content: "🎉 Outstanding focus session completed! I've credited +100 Study Points to your Scholar profile. Take a short 5-minute break now!" },
+          { role: 'assistant', content: 'Focus session complete. **+100 points** added. Take a 5-minute break.' },
         ]);
         setTimerMode('Break');
         setTimeLeft(300);
@@ -67,18 +74,13 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isTimerRunning, timeLeft, timerMode]);
 
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
+  const formatTime = (s) =>
+    `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
 
   const handleClearChat = () => {
-    if (window.confirm('Are you sure you want to clear your current conversation history?')) {
+    if (window.confirm('Clear the conversation?')) {
       localStorage.removeItem(HISTORY_KEY);
-      setMessages([
-        { role: 'assistant', content: 'Session reset! Ready for a new coding challenge. Drop your code context on the left!' },
-      ]);
+      setMessages([{ role: 'assistant', content: WELCOME }]);
     }
   };
 
@@ -91,191 +93,216 @@ export default function App() {
     setMessages(updatedHistory);
     setIsLoading(true);
 
-    try {
-      const response = await fetch(`${BACKEND_API_URL}/api/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          language,
-          code,
-          problemStatement,
-          compileError,
-          messageHistory: updatedHistory,
-        }),
-      });
+    let reply = null;
+    let quotaHit = false;
 
-      const data = await response.json();
-
-      if (data.reply) {
-        setMessages((prev) => [...prev, { role: 'assistant', content: data.reply }]);
-      } else {
-        throw new Error(data.error || 'Invalid API payload response layout.');
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        const response = await fetch(`${BACKEND_API_URL}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            language,
+            code,
+            problemStatement: '',
+            compileError,
+            messageHistory: updatedHistory,
+          }),
+        });
+        const data = await response.json();
+        if (response.status === 429) {
+          quotaHit = true;
+          break;
+        }
+        if (data.reply) {
+          reply = data.reply;
+          break;
+        }
+      } catch (error) {
+        console.warn(`Attempt ${attempt} failed`, error);
       }
-    } catch (error) {
-      console.error('Frontend API Link Failure:', error);
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', content: 'Sorry, I am having trouble connecting to the server. If it was idle, wait about a minute and try again.' },
-      ]);
-    } finally {
-      setIsLoading(false);
+
+      if (attempt < MAX_ATTEMPTS) {
+        setLoadingNote('Still working on it, one moment...');
+        await sleep(RETRY_DELAY_MS);
+      }
     }
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: 'assistant',
+        content: reply
+          ? reply
+          : quotaHit
+            ? "I've hit today's free AI limit. Please try again a bit later."
+            : "I couldn't reach the server. Please try again in a minute.",
+      },
+    ]);
+
+    setLoadingNote('');
+    setIsLoading(false);
+  };
+
+  const markdownComponents = {
+    p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
+    ol: ({ children }) => <ol className="list-decimal ml-5 mb-2 space-y-1">{children}</ol>,
+    ul: ({ children }) => <ul className="list-disc ml-5 mb-2 space-y-1">{children}</ul>,
+    strong: ({ children }) => <strong className="font-semibold text-[#f3f1ea]">{children}</strong>,
+    pre: ({ children }) => (
+      <pre className="bg-[#0a0a09] border border-[#2a2a25] rounded-lg p-3 my-2 overflow-x-auto text-xs" style={MONO_FONT}>
+        {children}
+      </pre>
+    ),
+    code: ({ className, children }) => {
+      const isBlock = /language-/.test(className || '') || String(children).includes('\n');
+      return isBlock ? (
+        <code className="text-[#e8e6df]">{children}</code>
+      ) : (
+        <code className="bg-[#2a2a25] text-[#e8a33d] px-1 py-0.5 rounded text-xs" style={MONO_FONT}>
+          {children}
+        </code>
+      );
+    },
   };
 
   return (
-    <div className="flex h-screen w-full bg-slate-950 text-slate-100 font-sans overflow-hidden">
-
-      {/* LEFT PANEL */}
-      <div className="w-[35%] h-full flex flex-col border-r border-slate-800 p-4 space-y-4 bg-slate-900/40">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-          <div className="flex items-center space-x-2">
-            <Code className="w-5 h-5 text-indigo-400" />
-            <h2 className="text-lg font-semibold text-slate-200">Integrated Sandbox</h2>
-          </div>
-        </div>
-
-        <div className="flex flex-col flex-1 space-y-1">
-          <label className="text-xs font-semibold uppercase text-slate-400">Source Code</label>
-          <textarea
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            className="w-full flex-1 bg-slate-950 border border-slate-800 rounded-lg p-3 font-mono text-sm text-emerald-400 resize-none outline-none"
-            placeholder="// paste your code here...."
-          />
-        </div>
-
-        <div className="flex flex-col space-y-1">
-          <label className="text-xs font-semibold uppercase text-rose-400">Console Error</label>
-          <textarea
-            value={compileError}
-            onChange={(e) => setCompileError(e.target.value)}
-            className="w-full bg-slate-950 border border-rose-950/40 text-rose-400 font-mono rounded-lg p-2.5 text-xs h-20 resize-none"
-            placeholder="Paste Compilation leaks here..."
-          />
-        </div>
-      </div>
-
-      {/* CENTER PANEL */}
-      <div className="w-[30%] h-full flex flex-col border-r border-slate-800 p-6 bg-slate-900/10 items-center justify-center space-y-8">
-        <div className="w-full bg-gradient-to-br from-indigo-950/40 to-slate-900 border border-indigo-500/20 rounded-2xl p-4 flex items-center justify-between shadow-xl">
-          <div className="flex items-center space-x-3">
-            <div className="p-2.5 bg-indigo-500/10 border border-indigo-500/30 rounded-xl">
-              <Trophy className="w-5 h-5 text-amber-400" />
-            </div>
-            <div>
-              <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Scholar Score</p>
-              <h4 className="text-xl font-bold text-white tracking-wide">
-                {studyPoints} <span className="text-xs text-indigo-400">pts</span>
-              </h4>
-            </div>
-          </div>
-          <span className="text-[10px] px-2 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono font-bold">
-            LVL {Math.floor(studyPoints / 500) + 1}
+    <div className="flex flex-col h-screen w-full bg-[#0e0e0c] text-[#e8e6df] overflow-hidden" style={UI_FONT}>
+      {/* TOP BAR */}
+      <header className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 border-b border-[#2a2a25] bg-[#121210]">
+        <div className="flex items-center gap-3">
+          <span className="text-base font-semibold tracking-tight">
+            Sage<span className="text-[#e8a33d]">Hub</span>
           </span>
+          <select
+            value={language}
+            onChange={(e) => setLanguage(e.target.value)}
+            className="bg-[#161613] border border-[#2a2a25] rounded-md px-2.5 py-1.5 text-sm outline-none focus:border-[#e8a33d]"
+          >
+            <option value="cpp">C++</option>
+            <option value="javascript">JavaScript</option>
+            <option value="python">Python</option>
+            <option value="java">Java</option>
+          </select>
         </div>
 
-        <div className="w-full bg-slate-900/60 border border-slate-800 rounded-3xl p-6 flex flex-col items-center space-y-6 shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-indigo-500 to-transparent opacity-50" />
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 text-sm">
+            <Trophy className="w-4 h-4 text-[#e8a33d]" />
+            <span className="font-medium">{studyPoints}</span>
+            <span className="text-[#8a877d] text-xs">pts · Lv {Math.floor(studyPoints / 500) + 1}</span>
+          </div>
 
-          <span className={`text-xs px-3 py-1 rounded-full font-bold uppercase tracking-widest ${
-            timerMode === 'Focus'
-              ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
-              : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-          }`}>
-            {timerMode} Session
-          </span>
-
-          <h1 className="text-5xl font-mono font-bold tracking-tight text-slate-100">
-            {formatTime(timeLeft)}
-          </h1>
-
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] uppercase tracking-wider text-[#8a877d]">{timerMode}</span>
+            <span className="text-sm tabular-nums" style={MONO_FONT}>{formatTime(timeLeft)}</span>
             <button
               onClick={() => setIsTimerRunning(!isTimerRunning)}
-              className={`p-3 rounded-xl font-medium transition-all shadow-md flex items-center justify-center ${
-                isTimerRunning ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white'
-              }`}
+              className="p-1.5 rounded-md bg-[#e8a33d] text-[#0e0e0c] hover:bg-[#f0b254] transition-colors"
+              title={isTimerRunning ? 'Pause' : 'Start'}
             >
-              {isTimerRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+              {isTimerRunning ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
             </button>
             <button
               onClick={() => { setIsTimerRunning(false); setTimeLeft(timerMode === 'Focus' ? 1500 : 300); }}
-              className="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-slate-300 transition-colors"
-              title="Reset Clock"
+              className="p-1.5 rounded-md border border-[#2a2a25] text-[#8a877d] hover:text-[#e8e6df] transition-colors"
+              title="Reset"
             >
-              <RotateCcw className="w-4 h-4" />
+              <RotateCcw className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* RIGHT PANEL */}
-      <div className="w-[35%] h-full flex flex-col bg-slate-950">
-        <div className="p-4 bg-slate-900/30 border-b border-slate-800 flex items-center justify-between">
-          <h3 className="font-semibold text-slate-200 text-sm flex items-center gap-1">
-            Sage <Sparkles className="w-3 h-3 text-indigo-400" />
-          </h3>
-          <button
-            onClick={handleClearChat}
-            className="text-slate-400 hover:text-rose-400 p-1 rounded-lg hover:bg-slate-900 transition-colors"
-            title="Clear Chat History"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
+      {/* MAIN */}
+      <main className="flex flex-col md:flex-row flex-1 min-h-0">
+        {/* CODE PANEL */}
+        <section className="w-full md:w-[45%] h-[45%] md:h-full flex flex-col p-4 gap-3 border-b md:border-b-0 md:border-r border-[#2a2a25] min-h-0">
+          <div className="flex flex-col flex-1 min-h-0 gap-1.5">
+            <label className="text-[11px] uppercase tracking-wider text-[#8a877d]">Code</label>
+            <textarea
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              spellCheck={false}
+              style={MONO_FONT}
+              className="flex-1 min-h-0 w-full bg-[#0a0a09] border border-[#2a2a25] rounded-lg p-3 text-[13px] leading-relaxed text-[#e8e6df] resize-none outline-none focus:border-[#e8a33d]/60"
+              placeholder="Paste your code here"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[11px] uppercase tracking-wider text-[#d9694f]">Error output</label>
+            <textarea
+              value={compileError}
+              onChange={(e) => setCompileError(e.target.value)}
+              spellCheck={false}
+              style={MONO_FONT}
+              className="w-full h-20 bg-[#0a0a09] border border-[#2a2a25] rounded-lg p-3 text-xs text-[#d9694f] resize-none outline-none focus:border-[#d9694f]/50"
+              placeholder="Paste compiler or runtime errors here"
+            />
+          </div>
+        </section>
 
-        <div className="flex-1 p-4 overflow-y-auto space-y-4">
-          {messages.map((msg, index) => (
-            <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm ${
-                msg.role === 'user'
-                  ? 'bg-indigo-600 text-white whitespace-pre-line'
-                  : 'bg-slate-900 border border-slate-800 text-slate-300'
-              }`}>
-                {msg.role === 'user' ? (
-                  msg.content
-                ) : (
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    components={{
-                      p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-                      ol: ({ children }) => <ol className="list-decimal ml-5 mb-2">{children}</ol>,
-                      ul: ({ children }) => <ul className="list-disc ml-5 mb-2">{children}</ul>,
-                      strong: ({ children }) => <strong className="text-white">{children}</strong>,
-                      code: ({ children }) => (
-                        <code className="bg-slate-800 px-1 rounded font-mono text-emerald-400">{children}</code>
-                      ),
-                    }}
-                  >
-                    {msg.content}
-                  </ReactMarkdown>
-                )}
+        {/* CHAT PANEL */}
+        <section className="flex-1 flex flex-col min-h-0 min-w-0">
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#2a2a25]">
+            <h3 className="text-sm font-medium">Sage</h3>
+            <button
+              onClick={handleClearChat}
+              className="text-[#8a877d] hover:text-[#d9694f] p-1 rounded transition-colors"
+              title="Clear chat"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
+            {messages.map((msg, index) => (
+              <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div
+                  className={`max-w-[88%] rounded-xl px-3.5 py-2.5 text-sm ${
+                    msg.role === 'user'
+                      ? 'bg-[#e8a33d] text-[#0e0e0c] whitespace-pre-line'
+                      : 'bg-[#161613] border border-[#2a2a25] text-[#d6d3ca]'
+                  }`}
+                >
+                  {msg.role === 'user' ? (
+                    msg.content
+                  ) : (
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                      {msg.content}
+                    </ReactMarkdown>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
-          {isLoading && (
-            <div className="flex justify-start">
-              <div className="bg-slate-900 border border-slate-800 text-slate-400 rounded-2xl px-4 py-2.5 text-sm italic animate-pulse">
-                Sage is analyzing your workspace...
+            ))}
+            {isLoading && (
+              <div className="flex justify-start">
+                <div className="bg-[#161613] border border-[#2a2a25] text-[#8a877d] rounded-xl px-3.5 py-2.5 text-sm animate-pulse">
+                  {loadingNote || 'Sage is thinking...'}
+                </div>
               </div>
-            </div>
-          )}
-          <div ref={chatEndRef} />
-        </div>
+            )}
+            <div ref={chatEndRef} />
+          </div>
 
-        <form onSubmit={handleSendMessage} className="p-4 border-t border-slate-800 bg-slate-900/20 flex items-center space-x-2">
-          <input
-            type="text"
-            value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
-            placeholder="Ask a question..."
-            className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 outline-none"
-          />
-          <button type="submit" disabled={isLoading} className="bg-indigo-600 hover:bg-indigo-700 text-white p-2.5 rounded-xl disabled:opacity-50">
-            <Send className="w-4 h-4" />
-          </button>
-        </form>
-      </div>
+          <form onSubmit={handleSendMessage} className="p-3 border-t border-[#2a2a25] flex items-center gap-2">
+            <input
+              type="text"
+              value={inputMessage}
+              onChange={(e) => setInputMessage(e.target.value)}
+              placeholder="Ask Sage a question"
+              className="flex-1 bg-[#161613] border border-[#2a2a25] rounded-lg px-3.5 py-2.5 text-sm outline-none focus:border-[#e8a33d]/60 placeholder:text-[#8a877d]"
+            />
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="bg-[#e8a33d] hover:bg-[#f0b254] text-[#0e0e0c] p-2.5 rounded-lg disabled:opacity-50 transition-colors"
+            >
+              <Send className="w-4 h-4" />
+            </button>
+          </form>
+        </section>
+      </main>
     </div>
   );
 }
