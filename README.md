@@ -21,7 +21,7 @@ A full stack AI coding mentor that helps developers build real debugging skills.
 | --- | --- |
 | Frontend | React (Vite), Tailwind CSS v4 (Vite plugin), react-markdown, hosted on Vercel |
 | Backend | Node.js, Express REST API, hosted on Render |
-| AI | Groq (`gpt-oss-120b`, `llama-3.1-8b-instant`) with Google Gemini as fallback, via the `@google/genai` SDK |
+| AI | Groq REST API (`gpt-oss-120b`, `llama-3.1-8b-instant`), with Google Gemini (`@google/genai` SDK) as fallback |
 
 ## Architecture
 
@@ -49,7 +49,7 @@ Vercel creates a new URL for every commit, so a single hardcoded origin in Expre
 Old PostCSS and Tailwind configs clashed during cloud builds. I removed them and moved to the Tailwind v4 Vite plugin in `vite.config.js`, and the Vite dev server now starts in well under a second.
 
 **4. Free-tier AI quota limits.**
-The Render logs showed Gemini returning 429 errors once the free daily quota (20 requests/day for the model I used) ran out, and some fallback models returned 404 because they had been retired. I added Groq as the primary provider, which has much higher free daily limits, kept Gemini as a fallback, and made the client show a clear message when a quota is hit.
+The Render logs showed Gemini returning 429 errors once the free daily quota (20 requests/day for the model I used) ran out, and some fallback models returned 404. I added Groq as the primary provider, which has much higher free daily limits, kept Gemini as a fallback, and made the client show a clear message when a quota is hit.
 
 ## Run it locally
 
