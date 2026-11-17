@@ -4,7 +4,7 @@ A full stack AI coding mentor that helps developers build real debugging skills.
 
 **[Live demo](https://socratic-tutor-kohl.vercel.app/)** · Frontend on Vercel · API on Render
 
-<img width="1911" height="927" alt="screenshot" src="https://github.com/user-attachments/assets/9033dc5a-ab84-4dfa-a4fb-e371177ffa76" />
+<img width="1917" height="1012" alt="Screenshot From 2026-11-17 16-35-27" src="https://github.com/user-attachments/assets/5e83c19a-558f-45c1-bebd-0eb7914d8e04" />
 
 ## Features
 
